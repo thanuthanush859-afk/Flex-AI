@@ -4,6 +4,21 @@ import { GeminiService } from './geminiService';
 import { Message, ChatSession } from './types';
 import { ChatBubble } from './components/ChatBubble';
 import { Sidebar } from './components/Sidebar';
+import { auth, signInWithGoogle, logout, db } from './firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  serverTimestamp, 
+  doc, 
+  setDoc,
+  getDocs,
+  limit
+} from 'firebase/firestore';
 import { 
   Send, 
   Paperclip, 
@@ -30,6 +45,7 @@ import {
 const gemini = new GeminiService();
 
 const App: React.FC = () => {
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -52,6 +68,76 @@ const App: React.FC = () => {
   const recognitionRef = useRef<any>(null);
 
   const currentSession = sessions.find(s => s.id === currentSessionId);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (u) {
+        // Save user to Firestore
+        setDoc(doc(db, 'users', u.uid), {
+          uid: u.uid,
+          email: u.email,
+          displayName: u.displayName,
+          photoURL: u.photoURL,
+          createdAt: serverTimestamp()
+        }, { merge: true });
+      } else {
+        setSessions([]);
+        setCurrentSessionId(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'sessions'),
+      where('uid', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedSessions: ChatSession[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        messages: [] // Messages will be fetched per session
+      } as ChatSession));
+      
+      setSessions(fetchedSessions);
+      
+      if (fetchedSessions.length > 0 && !currentSessionId) {
+        setCurrentSessionId(fetchedSessions[0].id);
+      } else if (fetchedSessions.length === 0) {
+        createNewSession();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    if (!currentSessionId || !user) return;
+
+    const q = query(
+      collection(db, 'sessions', currentSessionId, 'messages'),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedMessages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Message));
+
+      setSessions(prev => prev.map(s => 
+        s.id === currentSessionId ? { ...s, messages: fetchedMessages } : s
+      ));
+    });
+
+    return () => unsubscribe();
+  }, [currentSessionId, user]);
 
   useEffect(() => {
     // Initialize Speech Recognition
@@ -92,15 +178,29 @@ const App: React.FC = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentSession?.messages]);
 
-  const createNewSession = () => {
+  const createNewSession = async () => {
     const newId = Date.now().toString();
     const newSession: ChatSession = {
       id: newId,
       title: 'New Question',
       messages: []
     };
-    setSessions(prev => [newSession, ...prev]);
-    setCurrentSessionId(newId);
+
+    if (user) {
+      try {
+        const docRef = await addDoc(collection(db, 'sessions'), {
+          uid: user.uid,
+          title: 'New Question',
+          createdAt: serverTimestamp()
+        });
+        setCurrentSessionId(docRef.id);
+      } catch (error) {
+        console.error("Error creating session:", error);
+      }
+    } else {
+      setSessions(prev => [newSession, ...prev]);
+      setCurrentSessionId(newId);
+    }
   };
 
   const toggleListening = () => {
@@ -141,16 +241,39 @@ const App: React.FC = () => {
     };
 
     // Update session with user message
-    setSessions(prev => prev.map(s => 
-      s.id === currentSessionId 
-        ? { 
-            ...s, 
-            messages: [...s.messages, userMsg], 
-            title: s.messages.length === 0 ? (messageText.slice(0, 30) || 'Image Question') : s.title,
-            subject: s.messages.length === 0 ? selectedSubject : s.subject
-          } 
-        : s
-    ));
+    if (user && currentSessionId) {
+      try {
+        const sessionRef = doc(db, 'sessions', currentSessionId);
+        if (currentSession?.messages.length === 0) {
+          await setDoc(sessionRef, { 
+            title: messageText.slice(0, 30) || 'Image Question',
+            subject: selectedSubject
+          }, { merge: true });
+        }
+
+        await addDoc(collection(db, 'sessions', currentSessionId, 'messages'), {
+          role: 'user',
+          text: messageText,
+          image: selectedImage || null,
+          inputMethod: finalMethod,
+          subject: selectedSubject,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        console.error("Error saving user message:", error);
+      }
+    } else {
+      setSessions(prev => prev.map(s => 
+        s.id === currentSessionId 
+          ? { 
+              ...s, 
+              messages: [...s.messages, userMsg], 
+              title: s.messages.length === 0 ? (messageText.slice(0, 30) || 'Image Question') : s.title,
+              subject: s.messages.length === 0 ? selectedSubject : s.subject
+            } 
+          : s
+      ));
+    }
 
     const prompt = messageText;
     const img = selectedImage;
@@ -162,19 +285,32 @@ const App: React.FC = () => {
     try {
       const response = await gemini.solveQuestion(prompt, img || undefined, finalMethod, selectedSubject);
       
-      const modelMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'model',
-        text: response,
-        subject: selectedSubject,
-        timestamp: Date.now(),
-      };
+      if (user && currentSessionId) {
+        try {
+          await addDoc(collection(db, 'sessions', currentSessionId, 'messages'), {
+            role: 'model',
+            text: response,
+            subject: selectedSubject,
+            timestamp: Date.now()
+          });
+        } catch (error) {
+          console.error("Error saving model message:", error);
+        }
+      } else {
+        const modelMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'model',
+          text: response,
+          subject: selectedSubject,
+          timestamp: Date.now(),
+        };
 
-      setSessions(prev => prev.map(s => 
-        s.id === currentSessionId 
-          ? { ...s, messages: [...s.messages, modelMsg] } 
-          : s
-      ));
+        setSessions(prev => prev.map(s => 
+          s.id === currentSessionId 
+            ? { ...s, messages: [...s.messages, modelMsg] } 
+            : s
+        ));
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -252,10 +388,29 @@ const App: React.FC = () => {
               <div className="flex items-center gap-2 text-purple-400 cursor-default"><History size={12} /> History</div>
             </div>
             
-            <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white text-xs font-bold transition-all group">
-              <User size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
-              <span className="hidden sm:inline">Login</span>
-            </button>
+            {user ? (
+              <div className="flex items-center gap-3">
+                <div className="hidden sm:flex flex-col items-end">
+                  <span className="text-white text-xs font-bold">{user.displayName}</span>
+                  <button onClick={logout} className="text-[10px] text-slate-400 hover:text-red-400 transition-colors uppercase tracking-widest font-bold">Logout</button>
+                </div>
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="User" className="w-8 h-8 rounded-full border border-emerald-500/50" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/50">
+                    <User size={16} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button 
+                onClick={signInWithGoogle}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white text-xs font-bold transition-all group"
+              >
+                <User size={16} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                <span className="hidden sm:inline">Sign In with Google</span>
+              </button>
+            )}
           </div>
         </header>
 
