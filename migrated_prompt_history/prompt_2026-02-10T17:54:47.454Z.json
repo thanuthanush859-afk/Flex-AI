@@ -1,0 +1,159 @@
+[
+  {
+    "id": 0,
+    "author": "user",
+    "payload": {
+      "type": "text",
+      "text": "Create an AI question-solving app for students to solve their questions.\n- Like ChatGPT, but only for their questions.\n- Not for any other subjects like math, social science, Hindi, or English.",
+      "files": [],
+      "fileUploads": [],
+      "cMarkNode": {}
+    },
+    "createdTimestamp": {
+      "seconds": 1770746043,
+      "nanos": 34000000
+    }
+  },
+  {
+    "id": 1,
+    "author": "model",
+    "payload": {
+      "type": "thinking",
+      "text": "**Refining the Focus**\n\nOkay, I'm narrowing the scope. The initial idea of a general question-solving AI is shifting. I'm now honing in on an AI app tailored for students. It should mimic ChatGPT's conversational style but solely focus on answering questions, which would be in a specific set of academic subjects, and *exclude* math, social science, Hindi, and English. Wait, I also need to make sure to exclude certain other subjects as well, I'll review those shortly.\n\n\n**Clarifying the Purpose**\n\nOkay, the exclusions are leading me to refine the target audience and purpose. It's becoming clearer that this isn't a general student AI, but a STEM & Academic Assistant. I'm focusing on providing clear, step-by-step solutions for academic queries, with a strict directive to refuse off-topic or purely conversational requests. I'm imagining a specific-purpose tutor now. It will be a Science & Technology Student Assistant, with guardrails!\n\n\n**Defining the Technical Approach**\n\nMy thought process is crystallizing around the technical implementation. I'm leaning toward a React-based front-end with Tailwind for a clean UI. I'm planning to use Gemini 3 Flash for its speed and reasoning capabilities, and I have a clear file structure in mind for the project. I've also drafted a system instruction to ensure it adheres to academic topics. I'll need to define the metadata next.\n\n\n",
+      "cMarkNode": {}
+    },
+    "createdTimestamp": {
+      "seconds": 1770746043,
+      "nanos": 34000000
+    },
+    "doneTimestamp": {
+      "seconds": 1770746050,
+      "nanos": 393000000
+    }
+  },
+  {
+    "id": 2,
+    "author": "model",
+    "payload": {
+      "type": "generationTable",
+      "entries": [
+        {
+          "path": "metadata.json",
+          "generationType": 0,
+          "isDone": true,
+          "description": "App configuration including name, description, and required camera permissions for scanning student questions.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\n{\n  \"name\": \"SciTech Tutor AI\",\n  \"description\": \"A focused AI assistant for students specializing in Science (Physics, Chemistry, Biology) and Computer Science. Designed to provide step-by-step solutions while maintaining strict subject guardrails.\",\n  \"requestFramePermissions\": [\n    \"camera\"\n  ]\n}\n"
+            }
+          ]
+        },
+        {
+          "path": "index.html",
+          "generationType": 0,
+          "isDone": true,
+          "description": "Main HTML entry point with Tailwind CSS and necessary fonts.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>SciTech Tutor AI</title>\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">\n  <style>\n    body {\n      font-family: 'Inter', sans-serif;\n      background-color: #f8fafc;\n    }\n  </style>\n</head>\n<body>\n  <div id=\"root\"></div>\n</body>\n</html>\n"
+            }
+          ]
+        },
+        {
+          "path": "index.tsx",
+          "generationType": 0,
+          "isDone": true,
+          "description": "React application entry point.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\nimport React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\n\nconst rootElement = document.getElementById('root');\nif (!rootElement) {\n  throw new Error(\"Could not find root element to mount to\");\n}\n\nconst root = ReactDOM.createRoot(rootElement);\nroot.render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n"
+            }
+          ]
+        },
+        {
+          "path": "types.ts",
+          "generationType": 0,
+          "isDone": true,
+          "description": "Shared TypeScript interfaces and types.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\nexport interface Message {\n  id: string;\n  role: 'user' | 'model';\n  text: string;\n  image?: string;\n  timestamp: number;\n}\n\nexport interface ChatSession {\n  id: string;\n  title: string;\n  messages: Message[];\n}\n"
+            }
+          ]
+        },
+        {
+          "path": "geminiService.ts",
+          "generationType": 0,
+          "isDone": true,
+          "description": "Service for interacting with the Gemini API with specialized system instructions.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\nimport { GoogleGenAI, GenerateContentResponse } from \"@google/genai\";\n\nconst SYSTEM_INSTRUCTION = `\nYou are \"SciTech Tutor\", an expert academic assistant for students.\nYour expertise is strictly limited to:\n1. Pure Sciences: Physics, Chemistry, Biology.\n2. Technology: Computer Science, Programming, Engineering.\n3. Logical Reasoning related to these fields.\n\nCRITICAL GUARDRAILS:\n- DO NOT answer questions about Mathematics (Algebra, Calculus, Geometry) as a standalone subject. If a math calculation is part of a Physics/Chemistry problem, you may solve it, but do not solve pure math problems.\n- DO NOT answer questions about Social Sciences (History, Geography, Political Science, Economics, etc.).\n- DO NOT answer questions about Hindi, English, or any other languages/literature.\n- If a user asks something outside your scope, politely say: \"I specialize only in Science and Technology. I cannot help with [Subject Name] questions. Please ask me about Physics, Chemistry, Biology, or Computer Science!\"\n\nFormatting:\n- Use Markdown for responses.\n- Use bold for key terms.\n- Provide step-by-step explanations.\n- Be encouraging but academic.\n`;\n\nexport class GeminiService {\n  private ai: GoogleGenAI;\n\n  constructor() {\n    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });\n  }\n\n  async solveQuestion(prompt: string, imageBase64?: string): Promise<string> {\n    const model = 'gemini-3-flash-preview';\n    \n    const parts: any[] = [{ text: prompt }];\n    \n    if (imageBase64) {\n      parts.unshift({\n        inlineData: {\n          mimeType: 'image/jpeg',\n          data: imageBase64.split(',')[1] || imageBase64,\n        },\n      });\n    }\n\n    try {\n      const response: GenerateContentResponse = await this.ai.models.generateContent({\n        model,\n        contents: { parts },\n        config: {\n          systemInstruction: SYSTEM_INSTRUCTION,\n          temperature: 0.7,\n        },\n      });\n\n      return response.text || \"I couldn't generate a response. Please try again.\";\n    } catch (error) {\n      console.error(\"Gemini API Error:\", error);\n      if (error instanceof Error && error.message.includes(\"404\")) {\n          return \"Error: API key or model not found. Please check your configuration.\";\n      }\n      return \"I'm having trouble connecting to my brain right now. Please try again later!\";\n    }\n  }\n}\n"
+            }
+          ]
+        },
+        {
+          "path": "App.tsx",
+          "generationType": 0,
+          "isDone": true,
+          "description": "Main application component managing state and layout.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\nimport React, { useState, useRef, useEffect } from 'react';\nimport { GeminiService } from './geminiService';\nimport { Message, ChatSession } from './types';\nimport { ChatBubble } from './components/ChatBubble';\nimport { Sidebar } from './components/Sidebar';\nimport { \n  Send, \n  Paperclip, \n  Image as ImageIcon, \n  X, \n  BookOpen, \n  Microscope, \n  Cpu, \n  PlusCircle,\n  AlertCircle\n} from 'lucide-react';\n\nconst gemini = new GeminiService();\n\nconst App: React.FC = () => {\n  const [sessions, setSessions] = useState<ChatSession[]>([]);\n  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);\n  const [input, setInput] = useState('');\n  const [selectedImage, setSelectedImage] = useState<string | null>(null);\n  const [isLoading, setIsLoading] = useState(false);\n  const chatEndRef = useRef<HTMLDivElement>(null);\n  const fileInputRef = useRef<HTMLInputElement>(null);\n\n  const currentSession = sessions.find(s => s.id === currentSessionId);\n\n  useEffect(() => {\n    // Initialize first session if none exists\n    if (sessions.length === 0) {\n      createNewSession();\n    }\n  }, []);\n\n  useEffect(() => {\n    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });\n  }, [currentSession?.messages]);\n\n  const createNewSession = () => {\n    const newId = Date.now().toString();\n    const newSession: ChatSession = {\n      id: newId,\n      title: 'New Question',\n      messages: []\n    };\n    setSessions(prev => [newSession, ...prev]);\n    setCurrentSessionId(newId);\n  };\n\n  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {\n    const file = e.target.files?.[0];\n    if (file) {\n      const reader = new FileReader();\n      reader.onloadend = () => {\n        setSelectedImage(reader.result as string);\n      };\n      reader.readAsDataURL(file);\n    }\n  };\n\n  const handleSendMessage = async () => {\n    if ((!input.trim() && !selectedImage) || isLoading || !currentSessionId) return;\n\n    const userMsg: Message = {\n      id: Date.now().toString(),\n      role: 'user',\n      text: input,\n      image: selectedImage || undefined,\n      timestamp: Date.now(),\n    };\n\n    // Update session with user message\n    setSessions(prev => prev.map(s => \n      s.id === currentSessionId \n        ? { ...s, messages: [...s.messages, userMsg], title: input.slice(0, 30) || 'Image Question' } \n        : s\n    ));\n\n    const prompt = input;\n    const img = selectedImage;\n    \n    setInput('');\n    setSelectedImage(null);\n    setIsLoading(true);\n\n    try {\n      const response = await gemini.solveQuestion(prompt, img || undefined);\n      \n      const modelMsg: Message = {\n        id: (Date.now() + 1).toString(),\n        role: 'model',\n        text: response,\n        timestamp: Date.now(),\n      };\n\n      setSessions(prev => prev.map(s => \n        s.id === currentSessionId \n          ? { ...s, messages: [...s.messages, modelMsg] } \n          : s\n      ));\n    } catch (error) {\n      console.error(error);\n    } finally {\n      setIsLoading(false);\n    }\n  };\n\n  return (\n    <div className=\"flex h-screen bg-slate-50 overflow-hidden\">\n      {/* Sidebar */}\n      <Sidebar \n        sessions={sessions} \n        activeId={currentSessionId} \n        onSelect={setCurrentSessionId} \n        onNew={createNewSession}\n      />\n\n      {/* Main Chat Area */}\n      <main className=\"flex-1 flex flex-col relative h-full\">\n        {/* Header */}\n        <header className=\"h-16 border-b bg-white flex items-center justify-between px-6 shrink-0\">\n          <div className=\"flex items-center gap-2\">\n            <div className=\"bg-indigo-600 p-2 rounded-lg text-white\">\n              <BookOpen size={20} />\n            </div>\n            <div>\n              <h1 className=\"font-bold text-slate-800 leading-tight\">SciTech Tutor</h1>\n              <p className=\"text-xs text-slate-500\">Science & Tech Specialist</p>\n            </div>\n          </div>\n          <div className=\"hidden md:flex gap-4 text-xs font-medium text-slate-500\">\n            <div className=\"flex items-center gap-1\"><Microscope size={14} /> Physics</div>\n            <div className=\"flex items-center gap-1\"><Cpu size={14} /> CS</div>\n            <div className=\"flex items-center gap-1 text-red-400 opacity-60\"><AlertCircle size={14} /> No Math/Arts</div>\n          </div>\n        </header>\n\n        {/* Messages Container */}\n        <div className=\"flex-1 overflow-y-auto p-4 md:p-8 space-y-6\">\n          {currentSession?.messages.length === 0 ? (\n            <div className=\"h-full flex flex-col items-center justify-center text-center max-w-2xl mx-auto space-y-6\">\n              <div className=\"w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600\">\n                <PlusCircle size={40} />\n              </div>\n              <div>\n                <h2 className=\"text-2xl font-bold text-slate-800\">Ask Your Science Question</h2>\n                <p className=\"text-slate-500 mt-2\">\n                  Snap a photo of your homework or type your question. \n                  I specialize in Physics, Chemistry, Biology, and Computer Science.\n                </p>\n              </div>\n              <div className=\"grid grid-cols-1 md:grid-cols-2 gap-4 w-full\">\n                <button \n                  onClick={() => setInput(\"Explain the process of photosynthesis step by step.\")}\n                  className=\"p-4 bg-white border rounded-xl text-left hover:border-indigo-300 hover:shadow-sm transition-all text-sm text-slate-700\"\n                >\n                  \"Explain the process of photosynthesis...\"\n                </button>\n                <button \n                  onClick={() => setInput(\"How do I implement a binary search tree in Python?\")}\n                  className=\"p-4 bg-white border rounded-xl text-left hover:border-indigo-300 hover:shadow-sm transition-all text-sm text-slate-700\"\n                >\n                  \"How do I implement a binary search tree...\"\n                </button>\n              </div>\n            </div>\n          ) : (\n            currentSession?.messages.map((msg) => (\n              <ChatBubble key={msg.id} message={msg} />\n            ))\n          )}\n          {isLoading && (\n            <div className=\"flex gap-4 animate-pulse\">\n              <div className=\"w-8 h-8 rounded-full bg-slate-200\"></div>\n              <div className=\"flex-1 space-y-2\">\n                <div className=\"h-4 bg-slate-200 rounded w-1/4\"></div>\n                <div className=\"h-4 bg-slate-200 rounded w-3/4\"></div>\n              </div>\n            </div>\n          )}\n          <div ref={chatEndRef} />\n        </div>\n\n        {/* Input Area */}\n        <div className=\"p-4 md:p-6 bg-white border-t\">\n          <div className=\"max-w-4xl mx-auto\">\n            {selectedImage && (\n              <div className=\"mb-4 relative inline-block\">\n                <img src={selectedImage} alt=\"Selected\" className=\"h-32 rounded-lg border shadow-sm\" />\n                <button \n                  onClick={() => setSelectedImage(null)}\n                  className=\"absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-md\"\n                >\n                  <X size={14} />\n                </button>\n              </div>\n            )}\n            <div className=\"relative flex items-end gap-2 bg-slate-100 rounded-2xl p-2 border border-slate-200 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all\">\n              <button \n                onClick={() => fileInputRef.current?.click()}\n                className=\"p-3 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-xl transition-all\"\n                title=\"Attach Question Photo\"\n              >\n                <ImageIcon size={20} />\n              </button>\n              <input \n                type=\"file\" \n                ref={fileInputRef} \n                className=\"hidden\" \n                accept=\"image/*\" \n                onChange={handleImageUpload}\n              />\n              <textarea\n                value={input}\n                onChange={(e) => setInput(e.target.value)}\n                onKeyDown={(e) => {\n                  if (e.key === 'Enter' && !e.shiftKey) {\n                    e.preventDefault();\n                    handleSendMessage();\n                  }\n                }}\n                placeholder=\"Ask about Physics, Chemistry, Biology, or Computer Science...\"\n                className=\"flex-1 bg-transparent border-none focus:ring-0 text-slate-800 py-3 px-2 resize-none max-h-48\"\n                rows={1}\n              />\n              <button \n                onClick={handleSendMessage}\n                disabled={(!input.trim() && !selectedImage) || isLoading}\n                className={`p-3 rounded-xl transition-all ${\n                  (!input.trim() && !selectedImage) || isLoading \n                    ? 'bg-slate-200 text-slate-400' \n                    : 'bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 active:scale-95'\n                }`}\n              >\n                <Send size={20} />\n              </button>\n            </div>\n            <p className=\"text-[10px] text-center text-slate-400 mt-2\">\n              Note: SciTech Tutor is specialized for Science and Technology subjects only.\n            </p>\n          </div>\n        </div>\n      </main>\n    </div>\n  );\n};\n\nexport default App;\n"
+            }
+          ]
+        },
+        {
+          "path": "components/ChatBubble.tsx",
+          "generationType": 0,
+          "isDone": true,
+          "description": "Component for displaying chat messages with markdown support and image previews.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\nimport React from 'react';\nimport { Message } from '../types';\nimport { User, Cpu, BookOpen } from 'lucide-react';\n\ninterface ChatBubbleProps {\n  message: Message;\n}\n\nexport const ChatBubble: React.FC<ChatBubbleProps> = ({ message }) => {\n  const isModel = message.role === 'model';\n\n  return (\n    <div className={`flex gap-4 ${isModel ? 'justify-start' : 'justify-end'}`}>\n      {isModel && (\n        <div className=\"w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0\">\n          <BookOpen size={16} />\n        </div>\n      )}\n      \n      <div className={`max-w-[85%] md:max-w-[70%] space-y-2`}>\n        <div className={`rounded-2xl p-4 ${\n          isModel \n            ? 'bg-white border border-slate-200 text-slate-800' \n            : 'bg-indigo-600 text-white shadow-md'\n        }`}>\n          {message.image && (\n            <img \n              src={message.image} \n              alt=\"Question\" \n              className=\"max-h-64 rounded-lg mb-3 border border-indigo-300/30\" \n            />\n          )}\n          <div className=\"prose prose-sm max-w-none prose-slate\">\n            {message.text.split('\\n').map((line, i) => (\n              <p key={i} className=\"mb-2 last:mb-0 leading-relaxed\">\n                {line}\n              </p>\n            ))}\n          </div>\n        </div>\n        <div className={`text-[10px] text-slate-400 ${!isModel ? 'text-right' : ''}`}>\n          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n        </div>\n      </div>\n\n      {!isModel && (\n        <div className=\"w-8 h-8 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center shrink-0\">\n          <User size={16} />\n        </div>\n      )}\n    </div>\n  );\n};\n"
+            }
+          ]
+        },
+        {
+          "path": "components/Sidebar.tsx",
+          "generationType": 0,
+          "isDone": true,
+          "description": "Navigation sidebar for managing chat sessions.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\nimport React from 'react';\nimport { ChatSession } from '../types';\nimport { Plus, MessageSquare, BookOpen, Trash2 } from 'lucide-react';\n\ninterface SidebarProps {\n  sessions: ChatSession[];\n  activeId: string | null;\n  onSelect: (id: string) => void;\n  onNew: () => void;\n}\n\nexport const Sidebar: React.FC<SidebarProps> = ({ sessions, activeId, onSelect, onNew }) => {\n  return (\n    <aside className=\"w-72 bg-slate-900 text-slate-300 hidden md:flex flex-col border-r border-slate-800 shrink-0\">\n      <div className=\"p-4 border-b border-slate-800\">\n        <button \n          onClick={onNew}\n          className=\"w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 px-4 rounded-xl transition-all font-medium shadow-sm\"\n        >\n          <Plus size={18} />\n          New Question\n        </button>\n      </div>\n      \n      <div className=\"flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar\">\n        <div className=\"px-3 mb-2\">\n          <h3 className=\"text-[10px] font-bold text-slate-500 uppercase tracking-wider\">Recent History</h3>\n        </div>\n        {sessions.map((session) => (\n          <button\n            key={session.id}\n            onClick={() => onSelect(session.id)}\n            className={`w-full flex items-center gap-3 p-3 rounded-lg text-sm text-left transition-all ${\n              activeId === session.id \n                ? 'bg-slate-800 text-white shadow-inner' \n                : 'hover:bg-slate-800/50'\n            }`}\n          >\n            <MessageSquare size={16} className={activeId === session.id ? 'text-indigo-400' : 'text-slate-500'} />\n            <span className=\"truncate flex-1\">{session.title}</span>\n          </button>\n        ))}\n      </div>\n\n      <div className=\"p-4 border-t border-slate-800 bg-slate-900/50\">\n        <div className=\"flex items-center gap-3 p-2 bg-slate-800 rounded-lg\">\n          <div className=\"w-8 h-8 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center\">\n            <BookOpen size={16} />\n          </div>\n          <div className=\"flex-1 min-w-0\">\n            <p className=\"text-xs font-semibold text-white truncate\">Student Portal</p>\n            <p className=\"text-[10px] text-slate-500\">Free Academic Tier</p>\n          </div>\n        </div>\n      </div>\n    </aside>\n  );\n};\n"
+            }
+          ]
+        },
+        {
+          "path": "App.css",
+          "generationType": 0,
+          "isDone": true,
+          "description": "Small CSS tweaks for custom scrollbars.",
+          "diffs": [
+            {
+              "target": "",
+              "replacement": "\n.custom-scrollbar::-webkit-scrollbar {\n  width: 4px;\n}\n.custom-scrollbar::-webkit-scrollbar-track {\n  background: transparent;\n}\n.custom-scrollbar::-webkit-scrollbar-thumb {\n  background: #334155;\n  border-radius: 10px;\n}\n.custom-scrollbar::-webkit-scrollbar-thumb:hover {\n  background: #475569;\n}\n"
+            }
+          ]
+        }
+      ]
+    },
+    "createdTimestamp": {
+      "seconds": 1770746050,
+      "nanos": 394000000
+    },
+    "doneTimestamp": {
+      "seconds": 1770746051,
+      "nanos": 229000000
+    }
+  }
+]

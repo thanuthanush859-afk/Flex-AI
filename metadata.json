@@ -1,0 +1,8 @@
+{
+  "name": "Flex ai ",
+  "description": "An advanced AI tutor for all subjects including Math, Science, English, and more. Designed to provide step-by-step solutions and conceptual understanding.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
